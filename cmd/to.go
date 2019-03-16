@@ -32,7 +32,7 @@ func oldestCommit() {
 	r, _ := git.PlainOpen("./")
 	logopts := git.LogOptions{}
 	cIter, _ := r.Log(&logopts)
-	c0, err := cItmer.Next()
+	c0, err := cIter.Next()
 	c := c0
 	for {
 		if err == io.EOF {
