@@ -7,7 +7,7 @@ Command line to iterate through a git project's history.
 ```
 git-walk to start
 ```
-Goes to the first commit, by commit time, in the current history.
+Goes to the first commit, by commit time, in the current history. The current reference is saved into _../.git-walk_ file.
 
 ```
 git-walk to next
@@ -21,7 +21,7 @@ Goes to the saved reference, which is the one saved in _.git-walk_ the first tim
 
 # How it works
 
-Whenever `git-walk to start` is run, the current reference is save into the _../.git-walk_ file. The contents of this file allow for checking out commits in the future of the target commit. (_The file is saved in the parent directory due to an issue on [go-git](https://github.com/src-d/go-git/issues/1026) implementation, which removes any untracked files upon checking out a commit._)
+Whenever `git-walk to start` is run, the current reference is saved into the _../.git-walk_ file. The contents of this file allow for checking out commits in the future of the target commit. (_The file is saved in the parent directory due to an issue on [go-git](https://github.com/src-d/go-git/issues/1026) implementation, which removes any untracked files upon checking out a commit._)
 
 `git-walk`, when used with `start` or `next` checks out a commit, so git HEAD becomes detached.
 
