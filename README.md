@@ -1,6 +1,6 @@
 # git-walk
 
-Command line to iterate through a git project's history. Requires [git](https://git-scm.com/) to be installed.
+Command line to iterate through a git project's history, going forward in time (from oldest to newest commit). Requires [git](https://git-scm.com/) to be installed.
 
 # Installation
 
@@ -16,12 +16,17 @@ Below we assume the binary is renamed to `git-walk`.
   git-walk to start
   ```
 
-- Goes to the next commit, chronologically, in the current history:
+- Checkout a given commit, while allowing navigation to commits created after it:
+  ```
+  git-walk to start <commit>
+  ```
+
+- Go to the commit created after the current one:
   ```
   git-walk to next
   ```
 
-- Goes to the saved reference, which is the one saved in _.git-walk_ the first time `git-walk to start` is run.
+- Go to last known [non-detached HEAD](https://git-scm.com/docs/git-checkout#_detached_head), saved into _.git-walk_ file when `git-walk to start` is run.
   ```
   git-walk to end
   ```
