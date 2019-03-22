@@ -1,23 +1,18 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
-
-	"gopkg.in/src-d/go-git.v4/plumbing"
-	"gopkg.in/src-d/go-git.v4/plumbing/object"
+	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
-	git "gopkg.in/src-d/go-git.v4"
 )
 
-// File cannot be created on the root directory, otherwise it is
-// removed upon call to Checkout. See this issue on src-d/go-git:
-// https://github.com/src-d/go-git/issues/1026
 const (
-	cfgFile string = "../.git-walk"
+	cfgFile string = ".git-walk"
 )
 
 func init() {
@@ -43,7 +38,7 @@ DESCRIPTION
 
 	git-walk, when used with 'start' or 'next' checks out a commit, so git HEAD becomes detached.
 
-	Whenever 'git-walk to start' is run, the current reference is save into the ../.git-walk file. The contents of this file allow for checking out commits in the future of the target commit.
+	Whenever 'git-walk to start' is run, the current reference is save into a .git-walk file. The contents of this file allow for checking out commits in the future of the target commit.
 
 	Note that, one cannot run 'git-walk to start' for the first time while HEAD is detached, as a non-detached reference needs to be saved.
 
@@ -65,91 +60,95 @@ EXAMPLES
 }
 
 func run(target string) {
-	r, err := git.PlainOpen("./")
-	checkIfError(err)
-	c := currentCommit(r)
-	storeRef(r)
-	moveToRef(r)
-	tgt := targetCommit(r, target, c)
-	if tgt == nil {
-		return
+	isref := storeRef()
+	curr := currentRef()
+	if !isref {
+		if ref := loadRef(); ref != "" {
+			moveTo(ref)
+		}
 	}
-	moveTo(r, tgt)
+	if tgt := targetRef(target, curr, isref); tgt != "" {
+		moveTo(tgt)
+	}
 }
 
-func currentCommit(r *git.Repository) *object.Commit {
-	logopts := git.LogOptions{Order: git.LogOrderCommitterTime}
-	cIter, err := r.Log(&logopts)
+func storeRef() bool {
+	refname, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
 	checkIfError(err)
-	c, err := cIter.Next()
-	checkIfError(err)
-	return c
-}
-
-func storeRef(r *git.Repository) {
-	ref, _ := r.Head()
-	refname := ref.Name()
-	if refname != plumbing.HEAD {
-		err := ioutil.WriteFile(cfgFile, []byte(refname), 0666)
+	if strings.Compare(string(refname), "HEAD\n") != 0 {
+		err := ioutil.WriteFile(cfgFile, refname, 0666)
 		checkIfError(err)
+		return true
 	}
+	return false
 }
 
-func moveToRef(r *git.Repository) {
+func loadRef() string {
 	dat, err := ioutil.ReadFile(cfgFile)
-	checkIfError(err)
-	w, err := r.Worktree()
-	checkIfError(err)
-	checkopts := git.CheckoutOptions{Branch: plumbing.ReferenceName(string(dat)), Force: true}
-	err = w.Checkout(&checkopts)
+	if err != nil {
+		return ""
+	}
+	dat = bytes.TrimSuffix(dat, []byte("\n"))
+	return string(dat)
+}
+
+func moveTo(ref string) {
+	err := exec.Command("git", "checkout", ref).Run()
 	checkIfError(err)
 }
 
-func targetCommit(r *git.Repository, where string, current *object.Commit) *object.Commit {
-	var c *object.Commit
+func targetRef(where string, curr string, isref bool) string {
 	switch where {
+	case "end":
+		return ""
 	case "start":
-		c = oldestCommit(r, nil)
+		return startCommit()
 	case "next":
-		head, _ := r.Head()
-		if current.Hash.String() == head.Hash().String() {
-			return nil
+		if isref {
+			return ""
 		}
-		c = oldestCommit(r, current)
+		return nextCommit(curr)
 	default:
-		c = nil
+		return ""
 	}
-	return c
 }
 
-func moveTo(r *git.Repository, c *object.Commit) {
-	w, err := r.Worktree()
-	checkIfError(err)
-	checkopts := git.CheckoutOptions{Hash: c.Hash, Force: true}
-	err = w.Checkout(&checkopts)
-	checkIfError(err)
+func startCommit() string {
+	cmd := exec.Command("git", "log", "--reverse", "--pretty=%H", "-z")
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Run()
+	return string(buf.Next(40))
 }
 
-func oldestCommit(r *git.Repository, current *object.Commit) *object.Commit {
-	var c *object.Commit
-	if current != nil {
-		c = current
-	}
-	logopts := git.LogOptions{Order: git.LogOrderCommitterTime}
-	cIter, err := r.Log(&logopts)
-	checkIfError(err)
-	c0, err := cIter.Next()
+func nextCommit(curr string) string {
+	cmd := exec.Command("git", "log", "--reverse", "--pretty=%H", "-z")
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Run()
+	c := next(&buf)
 	for {
-		if err == io.EOF {
+		if c == curr || len(c) == 0 {
 			break
 		}
-		if current != nil && current.Hash.String() == c0.Hash.String() {
-			break
-		}
-		c = c0
-		c0, err = cIter.Next()
+		c = next(&buf)
 	}
+	c = next(&buf)
 	return c
+}
+
+func next(buf *bytes.Buffer) string {
+	c, _ := buf.ReadBytes(0)
+	c = bytes.TrimSuffix(c, []byte("\000"))
+	return string(c)
+}
+
+func currentRef() string {
+	cmd := exec.Command("git", "log", "--pretty=%H", "-z")
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Run()
+	return next(&buf)
 }
 
 func checkIfError(err error) {
