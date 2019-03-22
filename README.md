@@ -2,6 +2,13 @@
 
 Command line to iterate through a git project's history. Requires [git](https://git-scm.com/) to be installed.
 
+# Installation
+
+- Download latest binary from [releases page](https://github.com/MarcPer/git-walk/releases), choosing the right platform.
+- Place binary into a `$PATH` folder.
+
+Below we assume the binary is renamed to `git-walk`.
+
 # Examples
 
 - Move to the first commit, by commit time, in the current history:
